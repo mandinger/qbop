@@ -45,18 +45,58 @@ There is also an unmaintained (by me) [community compose directory](https://gith
 
 The app is a Rack service (Sinatra UI + Grape API) with background jobs. You can run it either in Docker (closest to prod) or directly on your host for quick UI/API iteration.
 
-### Option A — Docker (recommended)
-- PowerShell
-    - `$version = Get-Content -Raw version.yml`
-    - `docker build --build-arg VERSION=$version -t qbop:dev .`
-    - `docker compose -f docker-compose/docker-compose.yml up -d`
+### Option A — Docker (build from source)
+Build an image from your working tree and run it. Rebuild after code changes for immediate testing.
+
+Windows (PowerShell):
+- `$version = Get-Content -Raw version.yml`
+- `docker build --build-arg VERSION=$version -t qbop:dev .`
+- `docker run --rm -p 4567:4567 \`
+    -v ${PWD}/data:/opt/qbop/data -v ${PWD}/log:/opt/qbop/log \`
+    -e OPN_SKIP=true -e QBIT_SKIP=true -e LOG_TO_STDOUT=true \`
+    qbop:dev`
+
+Linux:
+- `version=$(cat version.yml)`
+- `docker build --build-arg VERSION=$version -t qbop:dev .`
+- `docker run --rm -p 4567:4567 \
+    -v "$PWD"/data:/opt/qbop/data -v "$PWD"/log:/opt/qbop/log \
+    -e OPN_SKIP=true -e QBIT_SKIP=true -e LOG_TO_STDOUT=true \
+    qbop:dev`
+
+Quick loop
+- Edit code → `docker build -t qbop:dev .` → rerun the `docker run ...` command.
 - UI: http://localhost:4567
+
+Alternative: compose override that builds locally
+- Create `docker-compose.dev.yml` next to the main compose file with:
+    ```yaml
+    services:
+        qbop:
+            build:
+                context: .
+                args:
+                    VERSION: ${VERSION}
+            image: qbop:dev
+            volumes:
+                - ./data:/opt/qbop/data
+                - ./log:/opt/qbop/log
+    ```
+- Windows (PowerShell):
+    - `$env:VERSION = (Get-Content -Raw version.yml)`
+    - `docker compose -f docker-compose/docker-compose.yml -f docker-compose.dev.yml up --build -d`
+- Linux:
+    - `export VERSION=$(cat version.yml)`
+    - `docker compose -f docker-compose/docker-compose.yml -f docker-compose.dev.yml up --build -d`
+- Rebuild after changes: rerun the same `docker compose ... up --build` command.
 
 ### Option B — Host runtime (quick start)
 Prereqs: Ruby 3.4.x, Bundler, SQLite3. On Windows, RubyInstaller + MSYS2 works well. For Proton/NAT-PMP tools, prefer WSL2 or Docker; host run will log errors but still serve the UI.
 
 1) Install deps
-- `bundle install`
+- Windows: install RubyInstaller 3.4 with DevKit; run `ridk install` to set up MSYS2 build tools.
+- Linux (Debian/Ubuntu): `sudo apt update && sudo apt install -y build-essential pkg-config libsqlite3-dev`
+- Then: `bundle install`
 
 2) Create data/log folders (SQLite DB and logs)
 - `mkdir data`
@@ -77,6 +117,7 @@ Prereqs: Ruby 3.4.x, Bundler, SQLite3. On Windows, RubyInstaller + MSYS2 works w
 Notes
 - DB migrations auto-run at boot. You can also run `bundle exec rake db:migrate` manually.
 - Background jobs start automatically; without `natpmpc` installed they’ll log errors but won’t crash the server.
+ - To iterate quickly: stop Puma, change code, restart `bundle exec puma -p 4567`. No build step needed on host runtime.
 
 ### Dev Utilities
 - Tests: `bundle exec rspec`
