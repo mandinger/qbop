@@ -40,3 +40,45 @@ There is also an unmaintained (by me) [community compose directory](https://gith
 | `QBIT_ADDR` | | The IP address of your qBittorrent app. Requires `http(s)://` and no trailing slash. |
 | `QBIT_USER` | | qBittorrent username |
 | `QBIT_PASS` | | qBittorrent password |
+
+## Local Development
+
+The app is a Rack service (Sinatra UI + Grape API) with background jobs. You can run it either in Docker (closest to prod) or directly on your host for quick UI/API iteration.
+
+### Option A — Docker (recommended)
+- PowerShell
+    - `$version = Get-Content -Raw version.yml`
+    - `docker build --build-arg VERSION=$version -t qbop:dev .`
+    - `docker compose -f docker-compose/docker-compose.yml up -d`
+- UI: http://localhost:4567
+
+### Option B — Host runtime (quick start)
+Prereqs: Ruby 3.4.x, Bundler, SQLite3. On Windows, RubyInstaller + MSYS2 works well. For Proton/NAT-PMP tools, prefer WSL2 or Docker; host run will log errors but still serve the UI.
+
+1) Install deps
+- `bundle install`
+
+2) Create data/log folders (SQLite DB and logs)
+- `mkdir data`
+- `mkdir log`
+
+3) Set minimal env for local dev (PowerShell examples)
+- `$env:OPN_SKIP = 'true'`  # skip OPNsense integration
+- `$env:QBIT_SKIP = 'true'` # skip qBittorrent integration
+- `$env:LOG_TO_STDOUT = 'true'`
+- `$env:LOOP_FREQ = '60'`   # reduce background loop noise
+- `$env:UI_MODE = 'dark'`
+- `$env:PROTON_GATEWAY = '10.2.0.1'`
+
+4) Run the app
+- `bundle exec puma -p 4567`  # loads config.ru, runs migrations automatically
+- UI: http://localhost:4567
+
+Notes
+- DB migrations auto-run at boot. You can also run `bundle exec rake db:migrate` manually.
+- Background jobs start automatically; without `natpmpc` installed they’ll log errors but won’t crash the server.
+
+### Dev Utilities
+- Tests: `bundle exec rspec`
+- Lint: `bundle exec rubocop`
+- Logs: `log/qbop.log` or STDOUT if `LOG_TO_STDOUT=true`
